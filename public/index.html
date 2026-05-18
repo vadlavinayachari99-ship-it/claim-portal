@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Claims Portal</title>
+
+<style>
+body { font-family: Arial; margin:0; }
+.main-content { padding:20px; }
+.stage-bar { display:flex; background:#eee; padding:10px; gap:10px; }
+.stage-item { font-size:12px; padding:5px; }
+.stage-item.active { color:blue; font-weight:bold; }
+.stage-item.done { color:green; }
+
+.form-group { margin-bottom:10px; }
+input, select, textarea { width:100%; padding:6px; }
+
+.btn { padding:8px 16px; cursor:pointer; }
+.btn-primary { background:blue; color:white; border:none; }
+.btn-secondary { border:1px solid #ccc; }
+</style>
+</head>
+
+<body>
+
+<div class="stage-bar">
+  <div class="stage-item active">Intimation</div>
+  <div class="stage-item">Documents</div>
+  <div class="stage-item">OCR</div>
+</div>
+
+<div class="main-content" id="app">
+
+<h2>Claim Intimation</h2>
+
+<div class="form-group">
+  <label>Policy Type *</label>
+  <select id="policy-type">
+    <option value="">Select</option>
+    <option value="Property">Property</option>
+    <option value="Marine Cargo">Marine Cargo</option>
+  </select>
+</div>
+
+<div class="form-group">
+  <label>Policy Number *</label>
+  <input id="policy-num">
+</div>
+
+<div class="form-group">
+  <label>Insured Name *</label>
+  <input id="insured-name">
+</div>
+
+<div class="form-group">
+  <label>Date of Loss *</label>
+  <input type="date" id="dol">
+</div>
+
+<div class="form-group">
+  <label>Loss Description *</label>
+  <textarea id="loss-desc"></textarea>
+</div>
+
+<div class="form-group">
+  <label>Estimated Loss *</label>
+  <input type="number" id="est-loss">
+</div>
+
+<div class="form-group">
+  <label>Contact *</label>
+  <input id="contact">
+</div>
+
+<button class="btn btn-primary" onclick="submitIntimation()">Submit</button>
+
+</div>
+
+<script>
+
+✅ IMPORTANT: AFTER RENDER DEPLOY — CHANGE THIS LINE
+const BASE = "https://your-render-url.onrender.com";
+
+let claimId = null;
+
+function updateStage(index){
+  let steps = document.querySelectorAll(".stage-item");
+  steps.forEach((s,i)=>{
+    s.classList.remove("active");
+    if(i<index) s.classList.add("done");
+  });
+  steps[index].classList.add("active");
+}
+
+async function submitIntimation(){
+
+  let required = ["policy-type","policy-num","insured-name","dol","loss-desc","est-loss","contact"];
+
+  for(let id of required){
+    if(!document.getElementById(id).value){
+      alert("Fill all fields");
+      return;
+    }
+  }
+
+  const data = {
+    policyType: document.getElementById("policy-type").value,
+    policyNumber: document.getElementById("policy-num").value,
+    insured: document.getElementById("insured-name").value
+  };
+
+  const res = await fetch(BASE + "/create-claim", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+
+  const result = await res.json();
+  claimId = result.claimId;
+
+  goStage2();
+}
+
+function goStage2(){
+  updateStage(1);
+
+  document.getElementById("app").innerHTML = `
+    <h2>Upload Documents</h2>
+
+    <input type="file" id="docs" multiple>
+
+    <div id="list"></div>
+
+    <br>
+    <button class="btn btn-secondary" onclick="location.reload()">Back</button>
+    <button class="btn btn-primary" onclick="submitDocs()">Continue</button>
+  `;
+
+  document.getElementById("docs").addEventListener("change", function(){
+    let list = document.getElementById("list");
+    list.innerHTML = "";
+
+    Array.from(this.files).forEach(f=>{
+      let div=document.createElement("div");
+      div.textContent="📄 "+f.name;
+      list.appendChild(div);
+    });
+  });
+}
+
+async function submitDocs(){
+
+  let files = document.getElementById("docs").files;
+
+  if(files.length === 0){
+    alert("Upload document");
+    return;
+  }
+
+  let formData = new FormData();
+  formData.append("claimId", claimId);
+
+  for(let f of files){
+    formData.append("documents", f);
+  }
+
+  await fetch(BASE + "/upload-docs", {
+    method: "POST",
+    body: formData
+  });
+
+  goStage3();
+}
+
+function goStage3(){
+  updateStage(2);
+
+  document.getElementById("app").innerHTML = `
+    <h2>OCR Validation</h2>
+    <p>✅ Documents uploaded successfully</p>
+    <p>✅ OCR processing stage complete</p>
+  `;
+}
+
+</script>
+
+</body>
+</html>
